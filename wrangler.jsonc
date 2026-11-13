@@ -1,0 +1,45 @@
+{
+  "name": "shop",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-11-12",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_ENV": "homologation",
+    "NODE_ENV": "production",
+    "PORT": "8080",
+    "PUBLIC_APP_URL": "https://shop.karenbrowbeauty.workers.dev",
+    "HOMOLOGATION_SEND_NOTIFICATIONS": "false",
+    "PRODUCTION_SEND_NOTIFICATIONS": "false"
+  },
+  "containers": [
+    {
+      "class_name": "KarenShopContainer",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./Dockerfile",
+          "build_vars": {
+            "VITE_SUPABASE_URL": "https://nsmgugidjpshayeotjah.supabase.co",
+            "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_2mFKP__Vn29PJgy87zzV5g_Wcu_FG5C"
+          }
+        }
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "KAREN_SHOP",
+        "class_name": "KarenShopContainer"
+      }
+    ]
+  },
+  "exports": {
+    "KarenShopContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
+}

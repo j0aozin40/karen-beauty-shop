@@ -1,0 +1,69 @@
+{
+  "files": [
+    {
+      "path": "LEIA-ME-VARIACOES-V2.md",
+      "sha256": "947008a0f88fd4361480f56174642e571c767fee51f30ba2b5ae3ada70d1d597",
+      "previousSha256": null
+    },
+    {
+      "path": "server/index.ts",
+      "sha256": "f4665248fe288fcabdbb696a882d0770dcb80072cf713587c87e6d15eb23f7d6",
+      "previousSha256": "2db43b64e3550a26a884d4f21fa400b8dae47c734ee9f884fbc09740bf65a1d4"
+    },
+    {
+      "path": "src/Admin.css",
+      "sha256": "eaa5eb6cd505312dfca4a4586444f3e4df1be1700482b0a4044f06404aeef883",
+      "previousSha256": "bf203bbf4e0bb93d83c6c2c5332945388acfa4838af949594258c25dd7b3229c"
+    },
+    {
+      "path": "src/Admin.tsx",
+      "sha256": "2d8c70337f09e1524469b09490aed48b9c04b7002c05056c4a358fa57121983c",
+      "previousSha256": "357d304799ea6c803c207707f994ebaf2e69f469ce34ef083f31dab0eb3f95bb"
+    },
+    {
+      "path": "src/App.css",
+      "sha256": "905d5c26f3671d0e3d040cb69ed37089a64ab92206059d54c49a1ae6d9546548",
+      "previousSha256": "671329dce92808ac11d2047da9026c8614137709a5b7c943bc8dc94552873361"
+    },
+    {
+      "path": "src/App.tsx",
+      "sha256": "ce4de152e0c7c50a26ef4c95766920d8bd574d7fc8015df9641502ce8be3ca84",
+      "previousSha256": "8b7f82160537b0d4187754c583ccca1fc658131823c2516054009d881b0b3652"
+    },
+    {
+      "path": "src/main.tsx",
+      "sha256": "0eead3813a976ec48c11d1bc51cb4198766e093c8b56db77bffb4b86aa6bafda",
+      "previousSha256": "e19a9f9efdd3bc97d6036c078a63fd26fea3b7622c32f4652ba6a9b2533a782d"
+    },
+    {
+      "path": "src/VariationEditor.tsx",
+      "sha256": "18926344635939f24c9719faf182d18c56b7d21a14daef04ee858fa26781e2fe",
+      "previousSha256": "80d9e634b5c3dd4572b373112421d522ffd57df6cd0f9251610a501dfc83da73"
+    },
+    {
+      "path": "src/variationTypes.ts",
+      "sha256": "86b479b5d3a5314e90e3cf12c1a091483b45e0e74609a79c69cae17d79c089e3",
+      "previousSha256": null
+    },
+    {
+      "path": "supabase/migrations/202611110002_delete_variation_safely.sql",
+      "sha256": "b1e68359af09745df47eb26bbe2ae16f1482ecbf8a64c9f5094f0ae958fb37d6",
+      "previousSha256": null
+    },
+    {
+      "path": "tests/api.test.ts",
+      "sha256": "b48a52685a17dcd21dae48f8961d457e8b5e575d99df6ea63af09d9676c50d46",
+      "previousSha256": "66e509ad5e5050e586c1f0c70a5f4933162ee318919bee937fdc9cef9b50571c"
+    },
+    {
+      "path": "tests/stock.test.mjs",
+      "sha256": "153cc311eccb3c6a36158e6e798e949feafcebda12f1f8df06cbbb2e62c254cf",
+      "previousSha256": "8ef1a79aa9e4fcb5d28af76120b2dd7de00c409ed5c02839a3e0e2bb53313c4d"
+    },
+    {
+      "path": "MANIFESTO-SHA256.txt",
+      "sha256": "49635942967f8883d17a806e31e5f8eeed0c4767bf90f086792cc63a0bd7a695",
+      "previousSha256": "b5383502c0ab2ac4587080f53ae297887041eb93408e6816ec14d0d195f7b287"
+    }
+  ]
+}

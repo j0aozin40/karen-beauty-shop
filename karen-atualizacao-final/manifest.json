@@ -1,0 +1,116 @@
+[
+  {
+    "file": "REVISAO-FINAL.md",
+    "text": true,
+    "before": null,
+    "after": "4bc47acafbb7a600859c0bda5615bf7cba0aadf3b714a299a9fb05862652a0b5"
+  },
+  {
+    "file": "homologation-tests/api.test.ts",
+    "text": true,
+    "before": "708caaa9493981d2f7c50ff119a10f8a862b61b6331f03f017b265a472c2498b",
+    "after": "1119729515f9653559ceae190e0432fcbf781c9d1188ef8303562f989e87d04d"
+  },
+  {
+    "file": "homologation-tests/homologation.test.ts",
+    "text": true,
+    "before": "1a31f3a8b5bccd536e9ce5357023657f6fc61eac5f38318da60ea0534778c509",
+    "after": "4a130f112ef109858214a1a08760c4bd0b2db9fa12fbba1e184fdbd07d054b84"
+  },
+  {
+    "file": "homologation-tests/privacy.test.mjs",
+    "text": true,
+    "before": null,
+    "after": "1fee9fa89454afb72d2912c51de7d40e64e238437527be3540b27cdb7fe99d50"
+  },
+  {
+    "file": "package.json",
+    "text": true,
+    "before": "43c4149cddb28c2a5b8159bb9c31de97105e45eb84f8d6c7ea113b23a3671fd9",
+    "after": "3108edab1f05d320faf1721d4cac440731f48b5ecea863df21cd342db501b993"
+  },
+  {
+    "file": "scripts/check-homologation.ts",
+    "text": true,
+    "before": null,
+    "after": "6e86a97ffc9115c6378438ce7343c60ff3be0c34f7354e1754d2013bb35ee91b"
+  },
+  {
+    "file": "server/homologation.ts",
+    "text": true,
+    "before": "62e3b29633ad08b8f4a7c3a3893be0d00f4229f5e243d099a960d9fca5ffb151",
+    "after": "57d721012f7a0fc1d7cb34d237cf520491b16bd1910a13092a5a325a380f0e87"
+  },
+  {
+    "file": "server/index.ts",
+    "text": true,
+    "before": "70c5d6e6353b7c0eddd97cc2ef6338041ef8f4059b0bb93e62a07ddc70409c67",
+    "after": "8f0c36afcb38f7b7f277f9a28e155f8f9702af43b78127e95a03bc27cd2da2da"
+  },
+  {
+    "file": "server/loginRateLimit.ts",
+    "text": true,
+    "before": null,
+    "after": "dd770fb8c3a51d4cf0e27626591c5791d5fd0c3551767c5dc11f7a9c2d722ab6"
+  },
+  {
+    "file": "src/App.tsx",
+    "text": true,
+    "before": "8b7f82160537b0d4187754c583ccca1fc658131823c2516054009d881b0b3652",
+    "after": "8caedabf96bdb292576fc4d23701bbceb6a2ad44579a8711d35c81784efc1247"
+  },
+  {
+    "file": "src/customerOrders.ts",
+    "text": true,
+    "before": null,
+    "after": "26db79c3ffff5d7a7af601bba020a51562ffc3f5e12ebf7c3f3ff2623352e8b4"
+  },
+  {
+    "file": "supabase/homologation/README.md",
+    "text": true,
+    "before": null,
+    "after": "9cba4f0f890eeff0faea174b98a694270aaa511879312f11f170161af6e79ff6"
+  },
+  {
+    "file": "supabase/homologation/preparar-banco-vazio.sql",
+    "text": true,
+    "before": null,
+    "after": "6dcdd9921ce3cce62de90433700b32e23ee18c3cbc75937daf8ab3e47b3276a9"
+  },
+  {
+    "file": "tests/api.test.ts",
+    "text": true,
+    "before": "1879b7f9c6e007e2089b4a0364423bb836247d5101b9bc8bbcef03c5aef407c8",
+    "after": "88a26751f5409d2c2452084fd6a465862c0869a229bbc2b62f9eabc428f89858"
+  },
+  {
+    "file": "tests/customer-orders.test.ts",
+    "text": true,
+    "before": null,
+    "after": "04820be1ebfc91e412e1fd041f911ff39796f304569d355f2cce73a472c0834c"
+  },
+  {
+    "file": "tests/fixtures/estrutura-public.sql",
+    "text": true,
+    "before": null,
+    "after": "edbefd586d61e3ad9dcbf971c0606752d74b15546dc2d3c44cc3e7e0751687d3"
+  },
+  {
+    "file": "tests/login-rate-limit.test.ts",
+    "text": true,
+    "before": null,
+    "after": "813772f892a203a4fddcb0b5befd9d63d2c2a9d17761e733d455f164f26bcf6d"
+  },
+  {
+    "file": "tests/payment.test.ts",
+    "text": true,
+    "before": "dbb9b2f51f490bc91840c01cb00bad1a8c6d8c62cb58ebadab8de3a1e98bcd9c",
+    "after": "8466d3208e39c64329f66cb221c4bbaef3e8d3e4cb6eb1ae25c514a05fe9cef6"
+  },
+  {
+    "file": "tests/stock.test.mjs",
+    "text": true,
+    "before": "f2d5d145c8bba5c07e17d975e83425fa426e9f3a833f63d5f705903067ee2b12",
+    "after": "0123ada53e0b5334e6da9d09bd2fb2df837d830b7cc57f06e3d27df7a821bce5"
+  }
+]

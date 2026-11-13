@@ -1,0 +1,402 @@
+begin;
+
+-- 1. Variações dos produtos
+create table public.produto_variacoes (
+  id uuid primary key default gen_random_uuid(),
+  produto_id integer not null
+    references public.produtos(id) on delete restrict,
+  tipo text not null,
+  nome text not null,
+  sku text,
+  estoque integer not null default 0,
+  preco numeric(10,2),
+  preco_promocional numeric(10,2),
+  imagem text,
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint variacao_tipo_valido
+    check (tipo in ('cor', 'tamanho', 'fragrancia', 'acabamento', 'kit', 'outro')),
+  constraint variacao_nome_valido
+    check (length(btrim(nome)) between 1 and 120),
+  constraint variacao_estoque_valido
+    check (estoque >= 0),
+  constraint variacao_preco_valido
+    check (preco is null or preco >= 0),
+  constraint variacao_promocao_valida
+    check (
+      preco_promocional is null
+      or (
+        preco is not null
+        and preco_promocional >= 0
+        and preco_promocional <= preco
+      )
+    )
+);
+
+create index produto_variacoes_produto_id_idx
+  on public.produto_variacoes(produto_id);
+
+create unique index produto_variacoes_sku_uidx
+  on public.produto_variacoes(produto_id, lower(sku))
+  where sku is not null and length(btrim(sku)) > 0;
+
+-- 2. Dados da variação preservados no histórico da compra
+alter table public.itens_pedido
+  add column variacao_id uuid null
+    references public.produto_variacoes(id) on delete restrict,
+  add column nome_variacao text null,
+  add column sku_variacao text null;
+
+create index itens_pedido_variacao_id_idx
+  on public.itens_pedido(variacao_id);
+
+-- 3. Reservas de estoque
+create table public.reservas_estoque (
+  id uuid primary key default gen_random_uuid(),
+
+  pedido_id uuid not null
+    references public.pedidos(id) on delete restrict,
+
+  item_pedido_id uuid not null
+    references public.itens_pedido(id) on delete restrict,
+
+  produto_id integer not null
+    references public.produtos(id) on delete restrict,
+
+  variacao_id uuid null
+    references public.produto_variacoes(id) on delete restrict,
+
+  quantidade integer not null check (quantidade > 0),
+
+  status text not null default 'reservada'
+    check (status in ('reservada', 'consumida', 'liberada', 'expirada')),
+
+  criado_em timestamptz not null default now(),
+  expira_em timestamptz not null,
+  finalizado_em timestamptz null
+);
+
+create index reservas_estoque_pedido_idx
+  on public.reservas_estoque(pedido_id);
+
+create index reservas_estoque_expiracao_idx
+  on public.reservas_estoque(expira_em)
+  where status = 'reservada';
+
+create index reservas_estoque_produto_ativa_idx
+  on public.reservas_estoque(produto_id, variacao_id)
+  where status = 'reservada';
+
+create unique index reservas_estoque_item_reservado_uidx
+  on public.reservas_estoque(item_pedido_id)
+  where status = 'reservada';
+
+-- 4. Segurança das tabelas
+alter table public.produto_variacoes enable row level security;
+alter table public.reservas_estoque enable row level security;
+
+revoke all on public.produto_variacoes from anon, authenticated;
+revoke all on public.reservas_estoque from anon, authenticated;
+
+grant all on public.produto_variacoes to service_role;
+grant all on public.reservas_estoque to service_role;
+
+commit;
+
+-- Reserva atômica de estoque por 30 minutos.
+
+create or replace function public.reservar_estoque_pedido(
+  p_pedido_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pedido record;
+  v_item record;
+  v_estoque integer;
+  v_produto_ativo boolean;
+  v_reservado bigint;
+  v_disponivel bigint;
+  v_expiracao timestamptz := now() + interval '30 minutes';
+  v_total bigint := 0;
+  v_itens integer := 0;
+begin
+  select id, pedido_teste, status
+  into v_pedido
+  from public.pedidos
+  where id = p_pedido_id
+  for update;
+
+  if not found then
+    raise exception 'Pedido não encontrado.';
+  end if;
+
+  if v_pedido.pedido_teste then
+    raise exception 'Pedido de teste não pode reservar estoque.';
+  end if;
+
+  if v_pedido.status <> 'aguardando_pagamento' then
+    raise exception 'Pedido não está aguardando pagamento.';
+  end if;
+
+  if exists (
+    select 1
+    from public.reservas_estoque
+    where pedido_id = p_pedido_id
+      and status in ('reservada', 'consumida')
+      and (status = 'consumida' or expira_em > now())
+  ) then
+    raise exception 'Este pedido já possui reserva ativa ou estoque consumido.';
+  end if;
+
+  update public.reservas_estoque
+  set status = 'expirada',
+      finalizado_em = now()
+  where pedido_id = p_pedido_id
+    and status = 'reservada'
+    and expira_em <= now();
+
+  for v_item in
+    select *
+    from public.itens_pedido
+    where pedido_id = p_pedido_id
+    order by produto_id, variacao_id nulls first, id
+  loop
+    v_itens := v_itens + 1;
+
+    -- Bloqueia sempre o produto principal.
+    -- Isso serializa reservas de diferentes variações do mesmo produto.
+    select estoque, ativo
+    into v_estoque, v_produto_ativo
+    from public.produtos
+    where id = v_item.produto_id
+    for update;
+
+    if not found or not v_produto_ativo then
+      raise exception 'Produto indisponível: %', v_item.nome_produto;
+    end if;
+
+    -- Produtos com variações ativas exigem a escolha de uma variação.
+    if v_item.variacao_id is null and exists (
+      select 1
+      from public.produto_variacoes
+      where produto_id = v_item.produto_id
+        and ativo = true
+    ) then
+      raise exception 'Selecione uma variação para: %', v_item.nome_produto;
+    end if;
+
+    -- Para produtos com variação, usa o estoque da variação.
+    if v_item.variacao_id is not null then
+      select estoque
+      into v_estoque
+      from public.produto_variacoes
+      where id = v_item.variacao_id
+        and produto_id = v_item.produto_id
+        and ativo = true
+      for update;
+
+      if not found then
+        raise exception 'Variação indisponível: %', v_item.nome_produto;
+      end if;
+    end if;
+
+    select coalesce(sum(quantidade), 0)
+    into v_reservado
+    from public.reservas_estoque
+    where produto_id = v_item.produto_id
+      and variacao_id is not distinct from v_item.variacao_id
+      and status = 'reservada'
+      and expira_em > now();
+
+    v_disponivel := v_estoque - v_reservado;
+
+    if v_item.quantidade < 1 or v_item.quantidade > v_disponivel then
+      raise exception 'Estoque insuficiente para: %', v_item.nome_produto;
+    end if;
+
+    insert into public.reservas_estoque (
+      pedido_id,
+      item_pedido_id,
+      produto_id,
+      variacao_id,
+      quantidade,
+      expira_em
+    )
+    values (
+      p_pedido_id,
+      v_item.id,
+      v_item.produto_id,
+      v_item.variacao_id,
+      v_item.quantidade,
+      v_expiracao
+    );
+
+    v_total := v_total + v_item.quantidade;
+  end loop;
+
+  if v_itens = 0 then
+    raise exception 'Pedido não possui itens.';
+  end if;
+
+  return jsonb_build_object(
+    'pedido_id', p_pedido_id,
+    'quantidade_reservada', v_total,
+    'expira_em', v_expiracao
+  );
+end;
+$$;
+
+revoke all on function public.reservar_estoque_pedido(uuid)
+from public, anon, authenticated;
+
+grant execute on function public.reservar_estoque_pedido(uuid)
+to service_role;
+
+create or replace function public.confirmar_reserva_pedido(
+  p_pedido_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pedido record;
+  v_reserva record;
+  v_itens integer;
+  v_reservas integer;
+  v_consumidas integer;
+  v_processadas integer := 0;
+  
+begin
+  select id, pedido_teste, status
+  into v_pedido
+  from public.pedidos
+  where id = p_pedido_id
+  for update;
+
+  if not found then
+    raise exception 'Pedido não encontrado.';
+  end if;
+
+  if v_pedido.pedido_teste then
+    raise exception 'Pedido de teste não pode baixar estoque.';
+  end if;
+
+  select count(*) into v_itens
+  from public.itens_pedido
+  where pedido_id = p_pedido_id;
+
+  select count(*) into v_consumidas
+  from public.reservas_estoque
+  where pedido_id = p_pedido_id
+    and status = 'consumida';
+
+  if v_consumidas = v_itens and v_itens > 0 then
+    return jsonb_build_object(
+      'sucesso', true,
+      'ja_confirmado', true
+    );
+  end if;
+
+  select count(*) into v_reservas
+  from public.reservas_estoque
+  where pedido_id = p_pedido_id
+    and status = 'reservada'
+    and expira_em > now();
+
+  if v_itens = 0 or v_reservas <> v_itens then
+    raise exception 'Reserva inexistente ou expirada. Pedido precisa de revisão.';
+  end if;
+
+  if v_pedido.status <> 'aguardando_pagamento' then
+    raise exception 'Status do pedido não permite confirmação.';
+  end if;
+
+  for v_reserva in
+    select *
+    from public.reservas_estoque
+    where pedido_id = p_pedido_id
+      and status = 'reservada'
+      and expira_em > now()
+    order by produto_id, variacao_id nulls first, id
+    for update
+  loop
+    perform 1
+    from public.produtos
+    where id = v_reserva.produto_id
+    for update;
+
+    if v_reserva.variacao_id is not null then
+
+      update public.produto_variacoes
+      set estoque = estoque - v_reserva.quantidade,
+          atualizado_em = now()
+      where id = v_reserva.variacao_id
+        and produto_id = v_reserva.produto_id
+        and ativo = true
+        and estoque >= v_reserva.quantidade;
+
+      if not found then
+        raise exception 'Estoque insuficiente na variação do produto.';
+      end if;
+
+      update public.produtos
+      set estoque = (
+        select coalesce(sum(estoque), 0)
+        from public.produto_variacoes
+        where produto_id = v_reserva.produto_id
+      ),
+      atualizado_em = now()
+      where id = v_reserva.produto_id;
+
+    else
+
+      update public.produtos
+      set estoque = estoque - v_reserva.quantidade,
+          atualizado_em = now()
+      where id = v_reserva.produto_id
+        and estoque >= v_reserva.quantidade;
+
+      if not found then
+        raise exception 'Estoque insuficiente para o produto.';
+      end if;
+
+    end if;
+
+    update public.reservas_estoque
+    set status = 'consumida',
+        finalizado_em = now()
+    where id = v_reserva.id;
+
+    v_processadas := v_processadas + 1;
+
+  end loop;
+
+  if v_processadas <> v_itens then
+    raise exception 'Nem todos os itens tiveram o estoque confirmado.';
+  end if;
+
+  update public.pedidos
+  set status = 'confirmado'
+  where id = p_pedido_id;
+
+  return jsonb_build_object(
+    'sucesso', true,
+    'pedido_id', p_pedido_id,
+    'quantidade_itens', v_itens
+  );
+end;
+$$;
+
+revoke all on function public.confirmar_reserva_pedido(uuid)
+from public, anon, authenticated;
+
+grant execute on function public.confirmar_reserva_pedido(uuid)
+to service_role;

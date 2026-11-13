@@ -1,0 +1,1 @@
+Execute node aplicar-interface-v2.mjs /caminho/do/projeto. Não executa migrations. Consulte patch/LEIA-ME-VARIACOES-V2.md.

@@ -1,0 +1,245 @@
+begin;
+
+-- Variações vinculadas aos produtos existentes.
+-- Produtos antigos continuam usando o estoque geral até a conversão explícita.
+alter table public.produtos
+  add column controla_variacoes boolean not null default false;
+create table public.produto_variacoes (
+  id uuid primary key default gen_random_uuid(),
+  produto_id integer not null
+    references public.produtos(id) on delete restrict,
+
+  tipo text not null,
+  nome text not null,
+  sku text,
+
+  estoque integer not null default 0,
+  preco numeric(10,2),
+  preco_promocional numeric(10,2),
+
+  imagem text,
+  ativo boolean not null default true,
+
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint variacao_tipo_valido
+    check (tipo in ('cor', 'tamanho', 'fragrancia', 'acabamento', 'kit', 'outro')),
+
+  constraint variacao_nome_valido
+    check (length(btrim(nome)) between 1 and 120),
+
+  constraint variacao_estoque_valido
+    check (estoque >= 0),
+
+  constraint variacao_preco_valido
+    check (preco is null or preco >= 0),
+
+  constraint variacao_promocao_valida
+  check (
+    preco_promocional is null
+    or (
+      preco is not null
+      and preco_promocional >= 0
+      and preco_promocional <= preco
+    )
+  )
+);
+
+create index produto_variacoes_produto_id_idx
+  on public.produto_variacoes(produto_id);
+
+create unique index produto_variacoes_sku_uidx
+  on public.produto_variacoes(produto_id, lower(sku))
+  where sku is not null and length(btrim(sku)) > 0;
+
+-- Preserva a identificação da variação comprada no histórico.
+alter table public.itens_pedido
+  add column variacao_id uuid null
+    references public.produto_variacoes(id) on delete restrict,
+  add column nome_variacao text null,
+  add column sku_variacao text null;
+
+create index itens_pedido_variacao_id_idx
+  on public.itens_pedido(variacao_id);
+
+-- O histórico guarda os dados da compra, mesmo que a variação mude.
+comment on column public.itens_pedido.nome_variacao
+  is 'Nome da variação no momento da compra.';
+
+comment on column public.itens_pedido.sku_variacao
+  is 'SKU da variação no momento da compra.';
+
+alter table public.produto_variacoes enable row level security;
+
+revoke all on public.produto_variacoes from anon, authenticated;
+grant all on public.produto_variacoes to service_role;
+
+-- Mantém o estoque geral igual à soma das variações.
+-- Bloqueia o produto antes de qualquer alteração nas variações.
+create or replace function public.bloquear_estoque_produto_variacoes()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  produto_atual integer;
+  produto_antigo integer;
+  produto_novo integer;
+begin
+  if TG_OP <> 'INSERT' then
+    produto_antigo := OLD.produto_id;
+  end if;
+
+  if TG_OP <> 'DELETE' then
+    produto_novo := NEW.produto_id;
+  end if;
+
+  for produto_atual in
+    select p.id
+    from public.produtos p
+    where p.id in (produto_antigo, produto_novo)
+    order by p.id
+    for update
+  loop
+    null;
+  end loop;
+
+  if TG_OP = 'DELETE' then
+    return OLD;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+-- Recalcula o estoque geral depois da alteração.
+create or replace function public.sincronizar_estoque_produto_variacoes()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  produto_antigo integer;
+  produto_novo integer;
+  produto_atual integer;
+begin
+  if TG_OP <> 'INSERT' then
+    produto_antigo := OLD.produto_id;
+  end if;
+
+  if TG_OP <> 'DELETE' then
+    produto_novo := NEW.produto_id;
+  end if;
+
+  for produto_atual in
+    select p.id
+    from public.produtos p
+    where p.id in (produto_antigo, produto_novo)
+      and p.controla_variacoes = true
+    order by p.id
+  loop
+    update public.produtos p
+    set estoque = (
+      select coalesce(sum(v.estoque), 0)::integer
+      from public.produto_variacoes v
+      where v.produto_id = produto_atual
+    ),
+    atualizado_em = now()
+    where p.id = produto_atual;
+  end loop;
+
+  if TG_OP = 'DELETE' then
+    return OLD;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+revoke all on function public.bloquear_estoque_produto_variacoes()
+from public, anon, authenticated;
+
+revoke all on function public.sincronizar_estoque_produto_variacoes()
+from public, anon, authenticated;
+
+create trigger bloquear_estoque_antes_alteracao_variacao
+before insert or update or delete
+on public.produto_variacoes
+for each row
+execute function public.bloquear_estoque_produto_variacoes();
+
+create trigger sincronizar_estoque_apos_alteracao_variacao
+after insert or update or delete
+on public.produto_variacoes
+for each row
+execute function public.sincronizar_estoque_produto_variacoes();
+
+
+-- Converte um produto para controle por variações sem alterar seu estoque total.
+create or replace function public.converter_produto_para_variacoes(
+  p_produto_id integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_estoque_atual integer;
+  v_total_variacoes bigint;
+  v_quantidade_variacoes integer;
+  v_controla_variacoes boolean;
+begin
+  select estoque, controla_variacoes
+    into v_estoque_atual, v_controla_variacoes
+  from public.produtos
+  where id = p_produto_id
+  for update;
+
+  if not found then
+    raise exception 'Produto não encontrado.';
+  end if;
+
+  if v_controla_variacoes then
+    raise exception 'Este produto já utiliza controle por variações.';
+  end if;
+
+  select count(*), coalesce(sum(estoque), 0)
+    into v_quantidade_variacoes, v_total_variacoes
+  from public.produto_variacoes
+  where produto_id = p_produto_id;
+
+  if v_quantidade_variacoes = 0 then
+    raise exception 'Cadastre pelo menos uma variação antes da conversão.';
+  end if;
+
+  if v_total_variacoes <> v_estoque_atual then
+    raise exception
+      'A soma das variações (%) deve ser igual ao estoque atual do produto (%).',
+      v_total_variacoes, v_estoque_atual;
+  end if;
+
+  update public.produtos
+  set controla_variacoes = true,
+      atualizado_em = now()
+  where id = p_produto_id;
+
+  return jsonb_build_object(
+    'sucesso', true,
+    'produto_id', p_produto_id,
+    'estoque_preservado', v_estoque_atual,
+    'variacoes', v_quantidade_variacoes
+  );
+end;
+$$;
+
+revoke all on function public.converter_produto_para_variacoes(integer)
+from public, anon, authenticated;
+
+grant execute on function public.converter_produto_para_variacoes(integer)
+to service_role;
+
+commit;
